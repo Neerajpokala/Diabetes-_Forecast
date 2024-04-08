@@ -1,6 +1,7 @@
 import requests
 import streamlit as st
 import json
+import time
 import pandas as pd
 import plotly.graph_objects as go
 
@@ -14,7 +15,7 @@ def request_api_endpoint(url, data):
         return None
 
 def get_forecast(payload):
-    forecast_api = "http://35.202.58.239:8000/forecast?disease=Diabetes&target=HbA1c&n=24"
+    forecast_api = "http://34.93.125.48:8000/forecast?disease=Diabetes&target=HbA1c&n=30"
     payload = payload
     # Make a POST request
     result = request_api_endpoint(forecast_api, payload)
@@ -22,7 +23,7 @@ def get_forecast(payload):
 
 def get_data(payload):
     # Example API endpoint and data
-    api_endpoint = "http://35.202.58.239:8000/data-generator?samples=100&disease=Diabetes"
+    api_endpoint = "http://34.93.125.48:8000/data-generator?samples=100&disease=Diabetes"
     payload = payload
     # Make a POST request
     result = request_api_endpoint(api_endpoint, json.dumps(payload))
@@ -52,16 +53,17 @@ def main():
 
     # Add a left panel
     st.sidebar.title('Navigation')
-    selected_tab = st.sidebar.radio('Go to', ['Data Extractor', 'Data Synthesizer', 'Forecasting','Diabetes Panel'])
+    selected_tab = st.sidebar.radio('Go to', ['Upload PDF', 'Synthetic Data Generator', 'Forecasting', 'Diabetes Panel'])
 
-    if selected_tab == 'Data Extractor':
-        st.subheader('Data Extractor')
+    if selected_tab == 'Upload PDF':
+        st.subheader('Upload PDF')
 
         uploaded_file = st.file_uploader("Upload PDF", type=['pdf'])
 
         if uploaded_file is not None:
             # Process the uploaded PDF file
             # response = upload_pdf(uploaded_file)
+            response=time.sleep(20)
             response = {
                 "Date": "2023-10-03",
                 "Age": 49,
@@ -81,17 +83,17 @@ def main():
             st.write("PDF uploaded successfully!")
             st.json(response)
 
-    elif selected_tab == 'Data Synthesizer':
-        st.subheader('Data Synthesizer')
+    elif selected_tab == 'Synthetic Data Generator':
+        st.subheader('Synthetic Data Generator')
 
         input_dict_extraction = st.session_state.extracted_data
         print(" st.session_state.extracted_data" ,  st.session_state.extracted_data)
-        if st.button('Extract Data'):
+        if st.button('Generate Synthetic Data'):
             output_json_extraction = get_data(input_dict_extraction)
             # Serialize the extracted data with double quotes
             output_json_extraction_str = json.dumps(output_json_extraction)
             st.session_state.populated_data = output_json_extraction_str
-            st.subheader('Extracted Data:')
+            st.subheader('Synthetic Data Generated:')
             st.json(output_json_extraction_str)
 
     elif selected_tab == 'Forecasting':
@@ -111,35 +113,41 @@ def main():
         input_dict_forecasting = st.session_state.forecast_data
 
         if input_dict_forecasting:
-            
-            #   # Kidney Health Score Forecast
-            # st.subheader("Kidney Health Score Forecast")
-            # actual = df['Actual'].tolist()
-            # forecasted = df['Forcasted'].tolist()
-            # dates = df['Date'].tolist()
-
-            # fig = go.Figure()
-            # fig.add_trace(go.Scatter(x=dates, y=actual, mode='lines', name='Actual'))
-            # fig.add_trace(go.Scatter(x=dates, y=forecasted, mode='lines', name='Forcasted'))
-
-            # fig.update_layout(
-            #     xaxis_title="Date",
-            #     yaxis_title="Kidney Health Score (%)",
-            #     xaxis_tickangle=-45,
-            #     xaxis_tickfont_size=8,
-            #     yaxis_range=[0, 100]
-            # )
-            
             data_list = [v for k, v in input_dict_forecasting.items()]
 
             # Create DataFrame from list of dictionaries
             df = pd.DataFrame(data_list)
 
             # Select only the 'Date' and 'Data' columns
-            df = df[['Date', 'Data']]
-
+            df = df[['Date', 'y']]
+            
             print(df)
-            st.line_chart(data = df , x='Date' , y = 'Data')
+                
+            # Kidney Health Score Forecast
+            # Assuming 'df' is the DataFrame created earlier
+            # Select the last 12 points for forecasting
+            forecast_df = df.tail(12)
+
+            st.subheader("Diabetes - HbA1c Forecast")
+            actual = df['y'].tolist()
+            forecasted = forecast_df['y'].tolist()  # Using the 'Data' column for forecasted values
+            dates = df['Date'].tolist()
+
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=dates, y=actual, mode='lines', name='Actual'))
+            fig.add_trace(go.Scatter(x=forecast_df['Date'], y=forecasted, mode='lines', name='Forecasted'))  # Using forecast_df for x-axis
+
+            fig.update_layout(
+                xaxis_title="Date",
+                yaxis_title="Diabetes - HbA1c(%)",
+                xaxis_tickangle=-45,
+                xaxis_tickfont_size=8,
+                yaxis=dict(
+                    dtick=0.1  # Set the increment to 0.1
+                )
+            )
+
+            st.plotly_chart(fig)
 
 if __name__ == "__main__":
     main()
