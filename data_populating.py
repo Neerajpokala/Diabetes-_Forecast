@@ -14,20 +14,25 @@ def request_api_endpoint(url, data):
         print("Error:", e)
         return None
 
-def get_forecast(payload):
-    forecast_api = "http://34.93.125.48:8000/forecast?disease=Diabetes&target=HbA1c&n=30"
-    payload = payload
+def get_forecast(disease, target, n):
+    forecast_api = f"http://34.93.125.48:8000/forecast?disease={disease}&target={target}&n={n}"
+    payload = st.session_state.populated_data 
     # Make a POST request
     result = request_api_endpoint(forecast_api, payload)
     return result
 
-def get_data(payload):
+def get_data(samples, disease):
     # Example API endpoint and data
-    api_endpoint = "http://34.93.125.48:8000/data-generator?samples=100&disease=Diabetes"
-    payload = payload
-    # Make a POST request
-    result = request_api_endpoint(api_endpoint, json.dumps(payload))
-    return result
+    api_endpoint = f"http://34.93.125.48:8000/data-generator?samples={samples}&disease={disease}"
+    payload = st.session_state.extracted_data
+    try:
+        # Make a POST request
+        result = request_api_endpoint(api_endpoint, json.dumps(payload))
+        return result
+    except requests.exceptions.RequestException as e:
+        print("Error:", e)
+        st.error("An error occurred while fetching the synthetic data. Please try again later or contact the API provider for assistance.")
+        return None
 
 def upload_pdf(file):
     files = {'files': file}
@@ -53,62 +58,69 @@ def main():
 
     # Add a left panel
     st.sidebar.title('Navigation')
-    selected_tab = st.sidebar.radio('Go to', ['Upload PDF', 'Synthetic Data Generator', 'Forecasting', 'Diabetes Panel'])
+    selected_tab = st.sidebar.radio('Go to', ['Data Extractor', 'Synthetic Data Generator', 'Forecasting', 'Diabetes Panel'])
 
-    if selected_tab == 'Upload PDF':
-        st.subheader('Upload PDF')
+    if selected_tab == 'Data Extractor':
+        st.subheader('Data Extractor')
 
         uploaded_file = st.file_uploader("Upload PDF", type=['pdf'])
 
         if uploaded_file is not None:
-            # Process the uploaded PDF file
-            # response = upload_pdf(uploaded_file)
-            response=time.sleep(20)
-            response = {
-                "Date": "2023-10-03",
-                "Age": 49,
-                "Urea": 19,
-                "Cr": 0.68,
-                "HbA1c": 6.7,
-                "BGL": 100,
-                "Chol": 169,
-                "TG": 121.61,
-                "HDL": 50.9,
-                "LDL": 93.77,
-                "VLDL": 24.32,
-                "IR": 4.35,
-                "Health_Status": "Diabetes"
+            with st.spinner("Data extracting from PDF..."):
+                # Process the uploaded PDF file
+                time.sleep(20)  # Simulating data extraction process
+                response = {
+                    "Date": "2023-10-03",
+                    "Age": 49,
+                    "Urea": 19,
+                    "Cr": 0.68,
+                    "HbA1c": 6.7,
+                    "BGL": 100,
+                    "Chol": 169,
+                    "TG": 121.61,
+                    "HDL": 50.9,
+                    "LDL": 93.77,
+                    "VLDL": 24.32,
+                    "IR": 4.35,
+                    "Health_Status": "Diabetes"
                 }
-            st.session_state.extracted_data = response
-            st.write("PDF uploaded successfully!")
-            st.json(response)
+                st.session_state.extracted_data = response
+                st.write("PDF uploaded successfully!")
+                st.json(response)
 
     elif selected_tab == 'Synthetic Data Generator':
         st.subheader('Synthetic Data Generator')
 
-        input_dict_extraction = st.session_state.extracted_data
-        print(" st.session_state.extracted_data" ,  st.session_state.extracted_data)
+        samples = st.number_input('Number of Samples', min_value=1, max_value=1000, value=100, step=1)
+        disease = st.selectbox('Select Disease', ['Diabetes'])
+
         if st.button('Generate Synthetic Data'):
-            output_json_extraction = get_data(input_dict_extraction)
-            # Serialize the extracted data with double quotes
-            output_json_extraction_str = json.dumps(output_json_extraction)
-            st.session_state.populated_data = output_json_extraction_str
-            st.subheader('Synthetic Data Generated:')
-            st.json(output_json_extraction_str)
+            with st.spinner("Generating Synthetic Data..."):
+                output_json_extraction = get_data(samples, disease)
+                if output_json_extraction:
+                    # Serialize the extracted data with double quotes
+                    output_json_extraction_str = json.dumps(output_json_extraction)
+                    st.session_state.populated_data = output_json_extraction_str
+                    st.subheader('Synthetic Data Generated:')
+                    st.json(output_json_extraction_str)
 
     elif selected_tab == 'Forecasting':
         st.subheader('Forecasting')
 
-        input_dict_forecasting = st.session_state.populated_data
+        # Get user inputs for disease, target, and number of days
+        disease = st.selectbox('Select Disease', ['Diabetes'])
+        target = st.selectbox('Select Target', ['HbA1c'])
+        n = st.number_input('Number of Months to Forecast', min_value=1, max_value=100, value=60, step=1)
 
         if st.button('Perform Forecasting'):
-            output_json_forecasting = get_forecast(input_dict_forecasting)
-            st.subheader('Forecasted Data:')
-            st.session_state.forecast_data = output_json_forecasting
-            st.json(output_json_forecasting)
+            with st.spinner("Performing Forecasting..."):
+                output_json_forecasting = get_forecast(disease, target, n)
+                st.subheader('Forecasted Data:')
+                st.session_state.forecast_data = output_json_forecasting
+                st.json(output_json_forecasting)
     
     elif selected_tab == 'Diabetes Panel':
-        st.subheader('Diabetes Panel')
+        # st.subheader('Diabetes Panel')
         
         input_dict_forecasting = st.session_state.forecast_data
 
@@ -120,8 +132,6 @@ def main():
 
             # Select only the 'Date' and 'Data' columns
             df = df[['Date', 'y']]
-            
-            print(df)
                 
             # Kidney Health Score Forecast
             # Assuming 'df' is the DataFrame created earlier
@@ -143,7 +153,8 @@ def main():
                 xaxis_tickangle=-45,
                 xaxis_tickfont_size=8,
                 yaxis=dict(
-                    dtick=0.1  # Set the increment to 0.1
+                    dtick=0.5,  # Set the increment to 0.5
+                    tickvals=[4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8,8.5,9,9.5,10,10.5,11]  # Specify the tick values to display
                 )
             )
 
